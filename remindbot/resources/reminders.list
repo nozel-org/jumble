@@ -3,35 +3,23 @@
 # name format: first-name-letter.last-name
 # row example: PROEFTIJD 191213 j.jansen
 
-# important: only use the space delimited structure below and don't use spaces in entries (for example names)
-# structure: CATEGORY DATE NAME
-# correct example: 
+# Belangrijk!
+# Volg de spatie-gescheiden structuur zoals hieronder beschreven volledig en gebruik geen spaties in bijv. namen.
+# Structuur:     [CATEGORIE] [INDIENSTTREDINGSDATUM] [AFLOOPDATUM] [LAATSTE-TIJDELIJKE] [NAAM]
+# Voorbeelden:   PROEFTIJD 200101 200201 NEE J.Jansen
+#                TIJDELIJK16 180101 200301 JA P.Cornelissen
 
-# valid categories
-# PROEFTIJD     (proeftijd van 1 maand)
-# TIJDELIJK8    (tijdelijke arbeidsovereenkomst van 8 maanden)
-# TIJDELIJK16   (tijdelijke arbeidsovereenkomst van 16 maanden)
-# ONBEPAALD     (arbeidsovereenkomst voor onbepaalde tijd)
+# Valide categorieën:
+# PROEFTIJD     proeftijd
+# TIJDELIJK8    tijdelijke arbeidsovereenkomst van 8 maanden
+# TIJDELIJK16   tijdelijke arbeidsovereenkomst van 16 maanden
+# ONBEPAALD     arbeidsovereenkomst voor onbepaalde tijd
 
-PROEFTIJD 
-PROEFTIJD
-PROEFTIJD
-TIJDELIJK8
-TIJDELIJK8
-TIJDELIJK8
-TIJDELIJK16
-TIJDELIJK16
-TIJDELIJK16
-ONBEPAALD
-ONBEPAALD
-ONBEPAALD
+# Valide datumformaat: 'yymmdd' (e.g. 200301)
+# Valide laatste tijdelijke contract: 'JA' of 'NEE'
 
-
-PROEFTIJD 191128 J.Jansen
-PROEFTIJD 191217 J.Jansen
-TIJDELIJK 191217 J.Jansen
-TIJDELIJK 191230 J.Jansen
-TIJDELIJK 200118 J.Jansen
-TIJDELIJK 200324 J.Jansen
-TIJDELIJK 200817 J.Jansen
-TIJDELIJK 210408 J.Jansen
+PROEFTIJD 200101 200201 NEE J.Jansen
+TIJDELIJK8 190401 200101 NEE J.Pinkelaar
+TIJDELIJK16 190823 191208 JA S.Klaassen
+TIJDELIJK16 180101 200301 JA P.Cornelissen
+ONBEPAALD 170401 M.vanderBerg

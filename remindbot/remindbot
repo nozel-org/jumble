@@ -36,6 +36,9 @@ else
     exit 1
 fi
 
+# empty variables
+TELEGRAM_MESSAGE=''
+
 #############################################################################
 # ARGUMENTS
 #############################################################################
@@ -189,7 +192,7 @@ remindbot_retrieve() {
 }
 
 #############################################################################
-# FEATURE FUNCTIONS
+# GATHER FUNCTIONS
 #############################################################################
 
 gather_eol() {
@@ -206,189 +209,266 @@ gather_eol() {
     EPOCH_DIFFERENCE="$(( ${EPOCH_EOL} - ${EPOCH_CURRENT} ))"
 }
 
-feature_overview_cli() {
-    # probationary period
-    echo
-    echo "PROEFTIJD:"
+gather_input_data() {
+    # copy reminders.list to temporary file and strip it of all comments and empty lines
+    INPUT_DATA="$(mktemp)-remindbot"
+    cat /etc/remindbot/reminders.list | sed '/^#/ d' | sed '/^$/d' > ${INPUT_DATA}
+}
+
+gather_overview() {
+    gather_input_data
+    OVERVIEW_OUTPUT="$(mktemp)-remindbot"
+
+    # category 'proeftijd'
+    echo '1) PROEFIJD' >> ${OVERVIEW_OUTPUT}
+    echo -e "In dienst\tEinddatum\tMedewerker" >> ${OVERVIEW_OUTPUT}
     while IFS= read -r line; do
-        # ignore lines starting with #
-        [[ "${line}" =~ ^#.*$ ]] && continue
-
-        # create relevant variables
         CATEGORY="$(echo ${line} | awk '{print $1}')"
-        DATE="$(echo ${line} | awk '{print $2}')"
-        DATE_PRETTY="$(date --date=${DATE} +%d-%m-%Y)"
-        NAME="$(echo ${line} | awk '{print $3}')"
-
-        # only use category 'PROEFTIJD'
         if [ "${CATEGORY}" == 'PROEFTIJD' ]; then
-            echo -e "- ${NAME}\t\t${DATE_PRETTY}"
+            DATE_EMPLOYMENT="$(date --date=$(echo ${line} | awk '{print $2}') +%d-%m-%Y)"
+            DATE_CONTRACT="$(date --date=$(echo ${line} | awk '{print $3}') +%d-%m-%Y)"
+            NAME="$(echo ${line} | awk '{print $5}')"
+            echo -e "${DATE_EMPLOYMENT}\t${DATE_CONTRACT}\t${NAME}" >> ${OVERVIEW_OUTPUT}
         fi
-    done < "/etc/remindbot/reminders.list"
+    done < "${INPUT_DATA}"
 
-    # temporary contracts
-    echo
-    echo "TIJDELIJK:"
+    # category 'tijdelijk8'
+    echo >> ${OVERVIEW_OUTPUT}
+    echo '2) TIJDELIJK 8 MAANDEN' >> ${OVERVIEW_OUTPUT}
+    echo -e "In dienst\tEinddatum\tMedewerker" >> ${OVERVIEW_OUTPUT}
     while IFS= read -r line; do
-        # ignore lines starting with #
-        [[ "${line}" =~ ^#.*$ ]] && continue
-
-        # create relevant variables
         CATEGORY="$(echo ${line} | awk '{print $1}')"
-        DATE="$(echo ${line} | awk '{print $2}')"
-        DATE_PRETTY="$(date --date=${DATE} +%d-%m-%Y)"
-        NAME="$(echo ${line} | awk '{print $3}')"
-
-        # only use category 'TIJDELIJK'
-        if [ "${CATEGORY}" == 'TIJDELIJK' ]; then
-            echo -e "- ${NAME}\t\t${DATE_PRETTY}"
+        if [ "${CATEGORY}" == 'TIJDELIJK8' ]; then
+            DATE_EMPLOYMENT="$(date --date=$(echo ${line} | awk '{print $2}') +%d-%m-%Y)"
+            DATE_CONTRACT="$(date --date=$(echo ${line} | awk '{print $3}') +%d-%m-%Y)"
+            NAME="$(echo ${line} | awk '{print $5}')"
+            echo -e "${DATE_EMPLOYMENT}\t${DATE_CONTRACT}\t${NAME}" >> ${OVERVIEW_OUTPUT}
         fi
-    done < "/etc/remindbot/reminders.list"
+    done < "${INPUT_DATA}"
+
+    # category 'tijdelijk16'
+    echo >> ${OVERVIEW_OUTPUT}
+    echo '3) TIJDELIJK 16 MAANDEN' >> ${OVERVIEW_OUTPUT}
+    echo -e "In dienst\tEinddatum\tMedewerker" >> ${OVERVIEW_OUTPUT}
+    while IFS= read -r line; do
+        CATEGORY="$(echo ${line} | awk '{print $1}')"
+        if [ "${CATEGORY}" == 'TIJDELIJK16' ]; then
+            DATE_EMPLOYMENT="$(date --date=$(echo ${line} | awk '{print $2}') +%d-%m-%Y)"
+            DATE_CONTRACT="$(date --date=$(echo ${line} | awk '{print $3}') +%d-%m-%Y)"
+            NAME="$(echo ${line} | awk '{print $5}')"
+            echo -e "${DATE_EMPLOYMENT}\t${DATE_CONTRACT}\t${NAME}" >> ${OVERVIEW_OUTPUT}
+        fi
+    done < "${INPUT_DATA}"
+
+    # category 'onbepaald'
+    echo >> ${OVERVIEW_OUTPUT}
+    echo '4) ONBEPAALD' >> ${OVERVIEW_OUTPUT}
+    echo -e "In dienst\tEinddatum\tMedewerker" >> ${OVERVIEW_OUTPUT}
+    while IFS= read -r line; do
+        CATEGORY="$(echo ${line} | awk '{print $1}')"
+        if [ "${CATEGORY}" == 'ONBEPAALD' ]; then
+            DATE_EMPLOYMENT="$(date --date=$(echo ${line} | awk '{print $2}') +%d-%m-%Y)"
+            NAME="$(echo ${line} | awk '{print $3}')"
+            echo -e "${DATE_EMPLOYMENT}\tn.v.t.\t\t${NAME}" >> ${OVERVIEW_OUTPUT}
+        fi
+    done < "${INPUT_DATA}"
+}
+
+#############################################################################
+# FEATURE FUNCTIONS
+#############################################################################
+
+feature_overview_cli() {
+    gather_overview
+
+    # output overview and remove temporary files
+    cat ${OVERVIEW_OUTPUT}    
+    rm ${INPUT_DATA}
+    rm ${OVERVIEW_OUTPUT}
 
     # exit when done
     exit 0
 }
 
 feature_overview_telegram() {
-    # create temp file for telegram message
-    TEMP_FILE="$(mktemp)"
+    gather_overview
 
-    # add some general text
-    echo "Het wekelijkse overzicht van einddata van proefperiodes en tijdelijke arbeidsovereenkomsten staat voor u klaar." >> ${TEMP_FILE}
-    echo "" >> ${TEMP_FILE}
-    
-    # probationary period
-    echo "<b>PROEFTIJD:</b>" >> ${TEMP_FILE}
-    while IFS= read -r line; do
-        # ignore lines starting with #
-        [[ "${line}" =~ ^#.*$ ]] && continue
-
-        # create relevant variables
-        CATEGORY="$(echo ${line} | awk '{print $1}')"
-        DATE="$(echo ${line} | awk '{print $2}')"
-        DATE_PRETTY="$(date --date=${DATE} +%d-%m-%Y)"
-        NAME="$(echo ${line} | awk '{print $3}')"
-
-        # only use category 'PROEFTIJD'
-        if [ "${CATEGORY}" == 'PROEFTIJD' ]; then
-            echo -e "<code>- ${DATE_PRETTY}      ${NAME}</code>" >> ${TEMP_FILE}
-        fi
-    done < "/etc/remindbot/reminders.list"
-
-    # add break to temp file
-    echo "" >> ${TEMP_FILE}
-
-    # temporary contracts
-    echo "<b>TIJDELIJK:</b>" >> ${TEMP_FILE}
-    while IFS= read -r line; do
-        # ignore lines starting with #
-        [[ "${line}" =~ ^#.*$ ]] && continue
-
-        # create relevant variables
-        CATEGORY="$(echo ${line} | awk '{print $1}')"
-        DATE="$(echo ${line} | awk '{print $2}')"
-        DATE_PRETTY="$(date --date=${DATE} +%d-%m-%Y)"
-        NAME="$(echo ${line} | awk '{print $3}')"
-
-        # only use category 'TIJDELIJK'
-        if [ "${CATEGORY}" == 'TIJDELIJK' ]; then
-            echo -e "<code>- ${DATE_PRETTY}      ${NAME}</code>" >> ${TEMP_FILE}
-        fi
-    done < "/etc/remindbot/reminders.list"
-
-    # create message for telegram
-    TELEGRAM_MESSAGE="$(cat ${TEMP_FILE})"
-
-    # call method_telegram
-    method_telegram
-
-    # remove temp file
-    rm ${TEMP_FILE}
+    # output overview and remove temporary files
+    TELEGRAM_MESSAGE="<code>$(cat ${OVERVIEW_OUTPUT})</code>"
+    method_telegram    
+    rm ${INPUT_DATA}
+    rm ${OVERVIEW_OUTPUT}
 
     # exit when done
     exit 0
 }
 
 feature_remind_cli() {
-    # check whether the current server load exceeds the threshold and alert if true. Output server alert status to shell.
-    if [ "${CURRENT_LOAD_PERCENTAGE_ROUNDED}" -ge "${THRESHOLD_LOAD_NUMBER}" ]; then
-        echo -e "[!] SERVER LOAD:\\tA current server load of ${CURRENT_LOAD_PERCENTAGE_ROUNDED}% exceeds the threshold of ${THRESHOLD_LOAD}."
-    else
-        echo -e "[i] SERVER LOAD:\\tA current server load of ${CURRENT_LOAD_PERCENTAGE_ROUNDED}% does not exceed the threshold of ${THRESHOLD_LOAD}."
-    fi
+    gather_input_data
 
-    if [ "${CURRENT_MEMORY_PERCENTAGE_ROUNDED}" -ge "${THRESHOLD_MEMORY_NUMBER}" ]; then
-        echo -e "[!] SERVER MEMORY:\\tA current memory usage of ${CURRENT_MEMORY_PERCENTAGE_ROUNDED}% exceeds the threshold of ${THRESHOLD_MEMORY}."
-    else
-        echo -e "[i] SERVER MEMORY:\\tA current memory usage of ${CURRENT_MEMORY_PERCENTAGE_ROUNDED}% does not exceed the threshold of ${THRESHOLD_MEMORY}."
-    fi
-
-    if [ "${CURRENT_DISK_PERCENTAGE}" -ge "${THRESHOLD_DISK_NUMBER}" ]; then
-        echo -e "[!] DISK USAGE:\\t\\tA current disk usage of ${CURRENT_DISK_PERCENTAGE}% exceeds the threshold of ${THRESHOLD_DISK}."
-    else
-        echo -e "[i] DISK USAGE:\\t\\tA current disk usage of ${CURRENT_DISK_PERCENTAGE}% does not exceed the threshold of ${THRESHOLD_DISK}."
-    fi
-
-    # exit when done
-    exit 0
-}
-
-feature_remind_telegram() {
-    # check whether the current server load exceeds the threshold and alert if true
-    if [ "${CURRENT_LOAD_PERCENTAGE_ROUNDED}" -ge "${THRESHOLD_LOAD_NUMBER}" ]; then
-        # create message for Telegram
-        TELEGRAM_MESSAGE="$(echo -e "\xE2\x9A\xA0 <b>ALERT: SERVER LOAD</b>\\n\\nThe server load (<code>${CURRENT_LOAD_PERCENTAGE_ROUNDED}%</code>) on <b>${HOSTNAME}</b> exceeds the threshold of <code>${THRESHOLD_LOAD}</code>\\n\\n<b>Load average:</b>\\n<code>${COMPLETE_LOAD}</code>")"
-
-        # call method_telegram
-        method_telegram
-    fi
-
-    # exit when done
-    exit 0
-}
-
-feature_eol_cli() {
-    # function requirements
-    gather_eol
-
-    # first check on TBA entries, then check whether epoch difference is positive or negative
-    if [ "${!EOL_OS_NAME}" == 'TBA' ]; then
-        echo '[i] The EOL date of this operating system has not been added to the database yet. Try again later.'
-    else
-        if [[ "${EPOCH_DIFFERENCE}" -lt '0' ]]; then
-            echo "[!] This operating system is end-of-life since ${!EOL_OS_NAME}."
-        elif [[ "${EPOCH_DIFFERENCE}" -gt '0' ]]; then
-            echo "[i] This operating system is supported $(( ${EPOCH_DIFFERENCE} / 86400 )) more days (until ${!EOL_OS_NAME})."
+    # remind 5 days before the end of the probation period
+    while IFS= read -r line; do
+        CATEGORY="$(echo ${line} | awk '{print $1}')"
+        if [ "${CATEGORY}" == 'PROEFTIJD' ]; then
+            CURRENT_DATE="$(date +"%y%m%d")"
+            DATE_EMPLOYMENT="$(echo ${line} | awk '{print $2}')"
+            DATE_EMPLOYMENT_PLUS_23="$(date -d "${DATE_EMPLOYMENT} +23 days" +"%y%m%d")"
+            NAME="$(echo ${line} | awk '{print $5}')"
+            if [ "${CURRENT_DATE}" -eq "${DATE_EMPLOYMENT_PLUS_23}" ]; then
+                TELEGRAM_MESSAGE="Herinnering: de proeftijd van ${NAME} loopt over 5 dagen (op xxx) af."
+                method_telegram
+            fi
         fi
-    fi
-}
+    done < "${INPUT_DATA}"
 
-feature_eol_telegram() {
-    # function requirements
-    gather_information_server
-    gather_eol
-
-    # do nothing if eol date isn't in database
-    if [ "${!EOL_OS_NAME}" == 'TBA' ]; then
-        exit 0
-    else
-        # give eol notice around 6, 3 and 1 month before eol, and more frequently if its less than 1 month (depends on EOL_CRON parameter)
-        if [[ "${EPOCH_DIFFERENCE}" -lt '0' ]]; then
-            TELEGRAM_MESSAGE="$(echo -e "\xE2\x9A\xA0 <b>EOL NOTICE: ${HOSTNAME}</b>\\nThis operating system is end-of-life since ${!EOL_OS_NAME}.")"
-        elif [[ "${EPOCH_DIFFERENCE}" -ge '14802000' ]] && [[ "${EPOCH_DIFFERENCE}" -lt '15552000' ]]; then
-            TELEGRAM_MESSAGE="$(echo -e "\xE2\x9A\xA0 <b>EOL NOTICE: ${HOSTNAME}</b>\\nThis operating system will be end-of-life in $(( ${EPOCH_DIFFERENCE} / 86400 )) days (on ${!EOL_OS_NAME}).")"
-        elif [[ "${EPOCH_DIFFERENCE}" -ge '7026000' ]] && [[ "${EPOCH_DIFFERENCE}" -lt '7776000' ]]; then
-            TELEGRAM_MESSAGE="$(echo -e "\xE2\x9A\xA0 <b>EOL NOTICE: ${HOSTNAME}</b>\\nThis operating system will be end-of-life in $(( ${EPOCH_DIFFERENCE} / 86400 )) days (on ${!EOL_OS_NAME}).")"
-        elif [[ "${EPOCH_DIFFERENCE}" -ge '1' ]] && [[ "${EPOCH_DIFFERENCE}" -lt '5184000' ]]; then
-            TELEGRAM_MESSAGE="$(echo -e "\xE2\x9A\xA0 <b>EOL NOTICE: ${HOSTNAME}</b>\\nThis operating system will be end-of-life in $(( ${EPOCH_DIFFERENCE} / 86400 )) days (on ${!EOL_OS_NAME}).")"
+    # remind 1,5 month before the end of temporary contracts that can be renewed once more
+    while IFS= read -r line; do
+        CATEGORY="$(echo ${line} | awk '{print $1}')"
+        if [ "${CATEGORY}" == 'TIJDELIJK8' ] || [ "${CATEGORY}" == 'TIJDELIJK16' ]; then
+            LAST_TEMP_CONTRACT="$(echo ${line} | awk '{print $4}')"
+            if [ "${LAST_TEMP_CONTRACT}" == 'NO' ] || [ "${LAST_TEMP_CONTRACT}" == 'no' ]; then
+                CURRENT_DATE="$(date +"%y%m%d")"
+                DATE_CONTRACT="$(echo ${line} | awk '{print $3}')"
+                DATE_CONTRACT_MINUS_45="$(date -d "${DATE_CONTRACT} -45 days" +"%y%m%d")"
+                DATE_CONTRACT_PRETTY="$(date --date=$(echo ${line} | awk '{print $3}') +%d-%m-%Y)"
+                NAME="$(echo ${line} | awk '{print $5}')"
+                if [ "${CURRENT_DATE}" -eq "${DATE_CONTRACT_MINUS_45}" ]; then
+                    TELEGRAM_MESSAGE="Herinnering: de tijdelijke arbeidsovereenkomst van ${NAME} verloopt over 1,5 maanden (op ${DATE_CONTRACT_PRETTY}). Zet de eventuele verlenging in werking."
+                    method_telegram
+                fi
+            fi
         fi
-    fi
+    done < "${INPUT_DATA}"
 
-    # call method_telegram
-    method_telegram
+    # remind 3 month before the end of temporary contracts that can not be renewed once more
+    while IFS= read -r line; do
+        CATEGORY="$(echo ${line} | awk '{print $1}')"
+        if [ "${CATEGORY}" == 'TIJDELIJK8' ] || [ "${CATEGORY}" == 'TIJDELIJK16' ]; then
+            LAST_TEMP_CONTRACT="$(echo ${line} | awk '{print $4}')"
+            if [ "${LAST_TEMP_CONTRACT}" == 'YES' ] || [ "${LAST_TEMP_CONTRACT}" == 'yes' ]; then
+                CURRENT_DATE="$(date +"%y%m%d")"
+                DATE_CONTRACT="$(echo ${line} | awk '{print $3}')"
+                DATE_CONTRACT_MINUS_90="$(date -d "${DATE_CONTRACT} -90 days" +"%y%m%d")"
+                DATE_CONTRACT_PRETTY="$(date --date=$(echo ${line} | awk '{print $3}') +%d-%m-%Y)"
+                NAME="$(echo ${line} | awk '{print $5}')"
+                if [ "${CURRENT_DATE}" -eq "${DATE_CONTRACT_MINUS_45}" ]; then
+                    TELEGRAM_MESSAGE="Herinnering: de tijdelijke arbeidsovereenkomst van ${NAME} verloopt over 3 maanden (op ${DATE_CONTRACT_PRETTY}). Het is tijd om vier gesprekken voor transitie van tijdelijk naar vast in te plannen."
+                    method_telegram
+                fi
+            fi
+        fi
+    done < "${INPUT_DATA}"
 
-    # exit when done
-    exit 0
+    # remind about performance reviews 1 month before every 6 months since employment
+    while IFS= read -r line; do
+        CATEGORY="$(echo ${line} | awk '{print $1}')"
+        if [ "${CATEGORY}" == 'TIJDELIJK8' ] || [ "${CATEGORY}" == 'TIJDELIJK16' ] || [ "${CATEGORY}" == 'ONBEPAALD' ]; then
+            CURRENT_DATE="$(date +"%y%m%d")"
+            DATE_EMPLOYMENT="$(echo ${line} | awk '{print $2}')"
+            NAME="$(echo ${line} | awk '{print $5}')"
+            # remind after 5-149 months
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +5 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +11 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +17 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +23 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +29 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +35 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +41 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +47 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +53 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +59 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +65 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +71 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +77 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +83 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +89 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +95 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +101 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +107 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +113 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +119 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +125 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +131 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +137 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +143 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+            if [ "${CURRENT_DATE}" -eq "$(date -d "${DATE_EMPLOYMENT} +149 months" +"%y%m%d")" ]; then
+                TELEGRAM_MESSAGE="Herinnering: het functioneringsgesprek met ${NAME} moet binnen nu en een maand plaatsvinden."
+                method_telegram
+            fi
+        fi
+    done < "${INPUT_DATA}"
 }
 
 #############################################################################
@@ -429,14 +509,10 @@ remindbot_main() {
         feature_overview_cli
     elif [ "${ARGUMENT_OVERVIEW}" == '1' ] && [ "${ARGUMENT_TELEGRAM}" == '1' ]; then
         feature_overview_telegram
-    elif [ "${ARGUMENT_OVERVIEW}" == '1' ] && [ "${ARGUMENT_EMAIL}" == '1' ]; then
-        error_not_yet_implemented
     elif [ "${ARGUMENT_REMIND}" == '1' ] && [ "${ARGUMENT_CLI}" == '1' ]; then
         feature_remind_cli
     elif [ "${ARGUMENT_REMIND}" == '1' ] && [ "${ARGUMENT_TELEGRAM}" == '1' ]; then
         feature_remind_telegram
-    elif [ "${ARGUMENT_REMIND}" == '1' ] && [ "${ARGUMENT_EMAIL}" == '1' ]; then
-        error_not_yet_implemented
     elif [ "${ARGUMENT_NONE}" == '1' ]; then
         error_invalid_option
     fi
