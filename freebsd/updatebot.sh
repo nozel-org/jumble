@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ################################################################################
-# Version 1.0.0-RELEASE (27-01-2023)
+# Version 1.1.1-RELEASE (27-01-2023)
 ################################################################################
 
 ################################################################################
@@ -20,7 +20,7 @@
 ################################################################################
 
 # updatebot version
-UPDATEBOT_VERSION='1.0.0'
+UPDATEBOT_VERSION='1.1.1'
 
 # commands
 FREEBSD_UPDATE="$(command -v freebsd-update)"
@@ -53,18 +53,18 @@ while test -n "$1"; do
             shift
             ;;
 
-        --help|-help|help|--h|-h)
+        --help|-help|help|--h|-h|h)
             ARGUMENT_HELP='1'
             shift
             ;;
 
         # features
-        --freebsd|freebsd|fbsd)
+        --freebsd|freebsd|fbsd|f)
             ARGUMENT_FREEBSD='1'
             shift
             ;;
     
-        --iocage|iocage)
+        --iocage|iocage|i)
             ARGUMENT_IOCAGE='1'
             shift
             ;;
