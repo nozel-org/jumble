@@ -1,0 +1,177 @@
+#!/bin/sh
+
+################################################################################
+# Version 1.0.0-RELEASE (27-01-2023)
+################################################################################
+
+################################################################################
+# Copyright 2023 Nozel/Sebas Veeke. Licenced under a Creative Commons
+# Attribution-NonCommercial-ShareAlike 4.0 International License.
+#
+# See https://creativecommons.org/licenses/by-nc-sa/4.0/
+#
+# Contact:
+# > e-mail      mail@nozel.org
+# > GitHub      onnozel
+################################################################################
+
+################################################################################
+# VARIABLES
+################################################################################
+
+# updatebot version
+UPDATEBOT_VERSION='1.0.0'
+
+# commands
+IOCAGE="$(command -v iocage)"
+PKG="$(command -v pkg)"
+
+# colors
+COLOR_RESET="\033[0;0m"
+COLOR_BOLD="\033[1m"
+COLOR_UNDER="\033[4m"
+COLOR_WHITE="\033[1;37m"
+COLOR_RED="\033[0;31m"
+COLOR_GREEN="\033[0;32m"
+COLOR_YELLOW="\033[1;33m"
+COLOR_LIGHT_RED="\033[1;31m"
+COLOR_LIGHT_GREEN="\033[1;32m"
+COLOR_LIGHT_MAGENTA="\033[1;35m"
+COLOR_LIGHT_CYAN="\033[1;36m"
+
+################################################################################
+# ARGUMENTS
+################################################################################
+
+# enable arguments to updatebot
+while test -n "$1"; do
+    case "$1" in
+        # options
+        --version)
+            ARGUMENT_VERSION='1'
+            shift
+            ;;
+
+        --help|-help|help|--h|-h)
+            ARGUMENT_HELP='1'
+            shift
+            ;;
+
+        # features
+        --iocage|iocage)
+            ARGUMENT_IOCAGE='1'
+            shift
+            ;;
+
+        # other
+        *)
+            ARGUMENT_NONE='1'
+            shift
+            ;;
+    esac
+done
+
+################################################################################
+# ERROR FUNCTIONS
+################################################################################
+
+error() {
+    printf "${COLOR_LIGHT_RED}$@${COLOR_RESET}\n"
+    exit 1
+}
+
+################################################################################
+# REQUIREMENT FUNCTIONS
+################################################################################
+
+requirement_root() {
+    # show error when updatebot isn't run with root privileges
+    if [ "$(id -u)" -ne '0' ]; then
+        error 'updatebot: error: used argument must be run with root privileges.'
+    fi
+}
+
+requirement_os() {
+    # show error when freebsd-version cannot be found
+    if [ ! "$(command -v freebsd-version)" ]; then
+        error 'updatebot: error: operating system is not supported.'
+    fi
+}
+
+requirement_iocage() {
+    # show error when iocage cannot be found
+    if [ ! "$(command -v iocage)" ]; then
+        error 'updatebot: error: iocage is required but not installed.'
+    fi
+}
+
+################################################################################
+# GENERAL FUNCTIONS
+################################################################################
+
+option_version() {
+    printf "updatebot version %s\n" "${UPDATEBOT_VERSION}"
+    printf "Copyright (C) 2023 Nozel.\n"
+    printf "License CC Attribution-NonCommercial-ShareAlike 4.0 Int.\n\n"
+    printf "Written by Sebas Veeke\n"
+}
+
+option_help() {
+    printf "${COLOR_BOLD}Usage:${COLOR_RESET}\n"
+    printf " updatebot [feature/option]...\n\n"
+    printf "${COLOR_BOLD}Features:${COLOR_RESET}\n"
+    printf " -i, --iocage         Update all iocage jails\n"
+    printf "${COLOR_BOLD}Options:${COLOR_RESET}\n"
+    printf " --help               Display this help and exit\n"
+    printf " --version            Display version information and exit\n"
+}
+
+################################################################################
+# FEATURE FUNCTIONS
+################################################################################
+
+feature_iocage() {
+    printf "${COLOR_BOLD}updatebot will update the following jails:${COLOR_RESET}\n"
+    printf "${COLOR_YELLOW}"
+    ${IOCAGE} list --quick --header | awk '{print $1;}'
+    printf "${COLOR_RESET}"
+    printf "\n${COLOR_BOLD}(1/4) updating base jail systems to latest patch level:${COLOR_RESET}\n"
+    ${IOCAGE} update ALL
+    printf "\n${COLOR_BOLD}(2/4) updating local package repository to latest version:${COLOR_RESET}\n"
+    ${IOCAGE} exec ALL ${PKG} update
+    printf "\n${COLOR_BOLD}(3/4) upgrading packages to latest versions:${COLOR_RESET}\n"
+    ${IOCAGE} exec ALL ${PKG} upgrade --yes
+    printf "\n${COLOR_BOLD}(4/4) restarting jails:${COLOR_RESET}\n"
+    ${IOCAGE} restart ALL
+    printf "\n${COLOR_BOLD}All done!${COLOR_RESET}\n\n"
+}
+
+################################################################################
+# MAIN FUNCTION
+################################################################################
+
+updatebot_main() {
+    # check whether requirements are met
+    requirement_root
+    requirement_os
+
+    # call option based on arguments
+    if [ "${ARGUMENT_VERSION}" = '1' ]; then
+        option_version
+        exit 0
+    elif [ "${ARGUMENT_HELP}" = '1' ]; then
+        option_help
+        exit 0
+    # call feature based on arguments
+    elif [ "${ARGUMENT_IOCAGE}" = '1' ]; then
+        requirement_iocage
+        feature_iocage
+        exit 0
+    # return error on invalid argument
+    elif [ "${ARGUMENT_NONE}" = '1' ]; then
+        error "updatebot: error: used argument is invalid, use updatebot --help for proper usage.\n"
+    fi
+}
+
+# call main function
+updatebot_main
